@@ -1,0 +1,101 @@
+﻿@model sk.Samples.CitizenViewModel
+@{
+    ViewData["Title"] = "Доступные заявки поблизости";
+    // Получаем переданные из контроллера координаты пользователя
+    var userCoords = (sk.Samples.Coordinates)ViewData["UserCoordinates"];
+}
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<div class="container mt-5">
+    <div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm" role="alert">
+        <div>
+            <h5 class="mb-1">🛂 Авторизация через ЕСИА (Госуслуги)</h5>
+            <strong>Ваш профиль подтвержден.</strong>
+            <br />
+            В этом месяце вы выступали понятым: <strong>@Model.MonthlyParticipationCount раз(а)</strong>.
+            <small class="text-muted">(Лимит: 3 раза в месяц)</small>
+        </div>
+        <div>
+            <button class="btn btn-outline-info" onclick="updateGeolocation()">Обновить геопозицию</button>
+        </div>
+    </div>
+
+    <h3 class="mb-4 mt-4">Заявки поблизости от вас</h3>
+
+    @if (!Model.NearbyRequests.Any())
+    {
+        <div class="text-center p-5 bg-light rounded shadow-sm">
+            <h5 class="text-muted">В данный момент поблизости нет активных заявок.</h5>
+            <p>Мы пришлем вам push-уведомление или СМС, если следственным органам понадобится ваша помощь.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var req in Model.NearbyRequests)
+            {
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm border-0 border-start border-primary border-4">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">Требуются понятые</h5>
+                            <p class="card-text mt-3">
+                                📍 <strong>Адрес:</strong> @req.Address <br />
+                                <!-- ФИКС: Передаем userCoords в качестве аргумента метода -->
+                                🚶‍♂️ <strong>Расстояние:</strong> ~@req.DistanceMeter(userCoords) метров от вас
+                            </p>
+                            <p class="card-text text-muted small mt-3">
+                                Официальное участие в следственных мероприятиях в качестве понятого.
+                            </p>
+                        </div>
+                        <div class="card-footer bg-white border-0 text-end pb-3">
+                            @if (Model.MonthlyParticipationCount >= 3)
+                            {
+                                <button class="btn btn-secondary" disabled title="Превышен лимит участий в этом месяце">Лимит исчерпан</button>
+                            }
+                            else
+                            {
+                                <form asp-action="RespondToRequest" asp-route-requestId="@req.Id" method="post">
+                                    <input type="hidden" name="userLat" id="userLat_@req.Id" value="" />
+                                    <input type="hidden" name="userLng" id="userLng_@req.Id" value="" />
+                                    <button type="submit" class="btn btn-success px-4" onclick="captureLocationForResponse(@req.Id)">
+                                        Откликнуться
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // Функция для кнопки "Обновить геопозицию"
+        function updateGeolocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    // Перенаправляем на Index с параметрами координат
+                    window.location.href = `?userLat=${position.coords.latitude}&userLng=${position.coords.longitude}`;
+                }, function(error) {
+                    alert("Не удалось получить геопозицию: " + error.message);
+                });
+            } else {
+                alert("Геолокация не поддерживается вашим браузером.");
+            }
+        }
+
+        // Скрипт для сохранения геолокации в момент отправки формы отклика
+        function captureLocationForResponse(id) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    document.getElementById('userLat_' + id).value = position.coords.latitude;
+                    document.getElementById('userLng_' + id).value = position.coords.longitude;
+                });
+            }
+        }
+    </script>
+}
+
