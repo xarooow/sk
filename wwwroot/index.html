@@ -1,0 +1,218 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список событий</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .event-card {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+            .btn-delete:hover {
+                background-color: #c82333;
+            }
+
+        .btn-join {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+
+            .btn-join:hover {
+                background-color: #e0a800;
+            }
+
+        .btn-add {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+
+        .search-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+
+            .search-box input {
+                margin-right: 10px;
+                padding: 8px;
+                width: 140px;
+                margin-bottom: 10px;
+            }
+
+            .search-box button {
+                padding: 8px 15px;
+                background-color: #28a745;
+                color: white;
+                border: none;
+                cursor: pointer;
+                border-radius: 3px;
+            }
+
+                .search-box button:hover {
+                    background-color: #218838;
+                }
+
+        .distance-badge {
+            color: #d9534f;
+            font-weight: bold;
+        }
+
+        .user-auth {
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="user-auth">
+        <label>Ваш ID пользователя (для записи):</label>
+        <input type="number" id="currentUserId" value="1" style="width: 60px; padding: 5px;">
+    </div>
+
+    <h2>Все события</h2>
+    <a href="create.html" class="btn-add">➕ Создать новое событие</a>
+
+    <div class="search-box">
+        <h3>Где вы находитесь?</h3>
+        <input type="number" step="any" id="myLon" placeholder="Долгота (X)">
+        <input type="number" step="any" id="myLat" placeholder="Широта (Y)">
+        <br>
+        <button onclick="loadEvents()">Показать ближайшие</button>
+        <button onclick="clearSearch()" style="background-color: #6c757d;">Сбросить</button>
+    </div>
+
+    <div id="eventsContainer">
+        <p>Загрузка данных...</p>
+    </div>
+
+    <script>
+        async function loadEvents() {
+            const container = document.getElementById('eventsContainer');
+            const myLon = document.getElementById('myLon').value;
+            const myLat = document.getElementById('myLat').value;
+
+            let apiUrl = '/api/events';
+            if (myLon && myLat) {
+                apiUrl += `?userLon=${myLon}&userLat=${myLat}`;
+            }
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const events = await response.json();
+                container.innerHTML = '';
+
+                if (events.length === 0) {
+                    container.innerHTML = '<p>Пока нет ни одного события.</p>';
+                    return;
+                }
+
+                events.forEach(ev => {
+                    const card = document.createElement('div');
+                    card.className = 'event-card';
+
+                    let distanceInfo = '';
+                    if (ev.distanceKm !== null) {
+                        distanceInfo = `<p class="distance-badge">📍 Расстояние: ${ev.distanceKm.toFixed(2)} км</p>`;
+                    }
+
+                    card.innerHTML = `
+                            <h3>${ev.nameOfEvent} (ID: ${ev.id})</h3>
+                            <p><strong>Описание:</strong> ${ev.description}</p>
+                            <p><strong>Координаты:</strong> X: ${ev.location.x}, Y: ${ev.location.y}</p>
+                            ${distanceInfo}
+                            <button class="btn-join" onclick="joinEvent(${ev.id})">✅ Записаться</button>
+                            <button class="btn-delete" onclick="deleteEvent(${ev.id})">🗑 Удалить</button>
+                        `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Ошибка:', error);
+                container.innerHTML = '<p style="color:red;">Не удалось загрузить события.</p>';
+            }
+        }
+
+        function clearSearch() {
+            document.getElementById('myLon').value = '';
+            document.getElementById('myLat').value = '';
+            loadEvents();
+        }
+
+        async function deleteEvent(id) {
+            if (!confirm('Вы уверены, что хотите удалить это событие?')) return;
+            try {
+                const response = await fetch(`/api/events/${id}`, { method: 'DELETE' });
+                if (response.ok) loadEvents();
+                else alert('Ошибка при удалении.');
+            } catch (error) {
+                console.error('Ошибка:', error);
+            }
+        }
+
+        // Новая функция для записи на событие
+        async function joinEvent(eventId) {
+            const userId = document.getElementById('currentUserId').value;
+            if (!userId) {
+                alert('Пожалуйста, введите ваш ID пользователя наверху страницы.');
+                return;
+            }
+
+            try {
+                // Обращаемся к методу JoinEvent, который мы обсуждали ранее
+                const response = await fetch(`/api/events/${eventId}/join?userId=${userId}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.message || 'Вы успешно записались!');
+                } else if (response.status === 403 || response.status === 400) {
+                    const errorData = await response.json();
+                    alert(`Ошибка: ${errorData.detail || 'Вы уже записаны'}`);
+                } else {
+                    alert('Произошла ошибка при записи.');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+            }
+        }
+
+        loadEvents();
+    </script>
+</body>
+</html>
